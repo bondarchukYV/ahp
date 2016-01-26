@@ -1,6 +1,0 @@
-Population, AverageIncome, 3
-Population, Delivery, 5
-Population, Buses, 1/3
-AverageIncome, Delivery, 3
-AverageIncome, Buses, 1/5
-Delivery, Buses, 1/7
