@@ -7,17 +7,19 @@ object AHPExperiments {
 
     val dataFile = "/home/yaroslav/Downloads/ahp/data/data.csv"
 
+//    Максимальные значения для параметров, после которых мы их обрезаем
     val maxVals: Map[String, Long] =
       Map("Range" -> 4500, "MarketSize" -> 100,
         "Delivery" -> 999, "Buses/MS" -> 75,
         "WebClothes" -> 5000, "WebShoes" -> 1100)
 
+//    Дополнительный знак для параметров. Если 1 - чем параметр больше - тем лучше, если -1 - чем меньше тем лучше.
     val extSigns: Map[String, Int] =
       Map("Range" -> -1, "MarketSize" -> 1,
         "Delivery" -> -1, "Buses/MS" -> 1,
         "WebClothes" -> 1, "WebShoes" -> 1)
 
-
+// Коллекция с экспериментами
     val exp = for {
         i: String <- maxVals.map(_._1).toSet
         j: Double <- (1 to 5).map(_.toDouble/10)
@@ -27,7 +29,9 @@ object AHPExperiments {
       val (dataHeaders, data) = AHPCSVReader.readData(dataFile)
       val (prefHeaders, prefs) = AHPCSVReader.readPreferences(preferencesFile)
 
-
+// функция добавляющая случайный равномерный шум в данные при анализе устойчивости.
+// (с помощью зашумленных данных смотрим,
+// как меняются результаты при неточной оценке значений параметров для городов)
       def addNoize(data: Dataset, paramName: String, noizeLevel: Double): Dataset = {
         def noize(value: Long) = value*(math.random*2-1)*noizeLevel
 
@@ -39,7 +43,7 @@ object AHPExperiments {
                        (p._1, math.round(p._2 + noize(p._2)))
                      else (p._1, p._2)}))))
       }
-
+// Функция, обрезающая данные по максимальным значениям
       def cutData(data: Dataset): Dataset = {
         def cut(value: Long , max: Long): Long = if (value > max) max else value
         Dataset(data.data.map(x =>
@@ -47,14 +51,17 @@ object AHPExperiments {
             Params(x.params.params.map(x => (x._1, cut(x._2, maxVals(x._1))))))))
       }
 
+//    Обрезанные данные
       val cData = cutData(addNoize(data, i, j))
 
+//    Функция, вычисляющая разницу между максимальным и минимальным значением параметра в данных
       def maxDiffFunc(func: Params => Long): Long = {
         val max = cData.data.map(x => func(x.params)).max
         val min = cData.data.map(x => func(x.params)).min
         max - min
       }
 
+//    Функция, расставляющая приоритеты городов по параметрам.
       def scoreFunction(alt1: Alternative, alt2: Alternative, getParamFunc: Params => Long, extSign: Int): Double = {
               val maxDiff = maxDiffFunc(getParamFunc)
               val sign = math.signum(getParamFunc(alt1.params) - getParamFunc(alt2.params))
@@ -62,6 +69,7 @@ object AHPExperiments {
               math.pow(math.round(d.toDouble * 8 / maxDiff).toInt + 1, extSign*sign)
       }
 
+//    Получить матрицу преференций
       def getPrefsMatrx(data: Dataset,
           func: (Alternative, Alternative, Params => Long, Int) => Double,
           getParamFunc: Params => Long, extSign: Int): Map[(String, String), Double] = {
@@ -77,6 +85,7 @@ object AHPExperiments {
         m
       }
 
+//    получить значения веса для пары (город, критерий)
       def getPropsPerfsMatrix: Map[(String, String), Double] = {
         val keys = prefs.prefs.flatMap(x => Set(x._1._1, x._1._2)).toSet
         val p = prefs.prefs ++
@@ -85,6 +94,7 @@ object AHPExperiments {
         p
       }
 
+//    служебная функция, печатающая матрицу преференций
       def printPrefsMatrix(m: Map[(String, String), Double]): Unit = {
         val keys = m.keySet.map(_._1).toSeq
 
@@ -96,6 +106,7 @@ object AHPExperiments {
           })
       }
 
+//    Функция, получающая веса из матрицы преференций
       def getWeights(m: Map[(String, String), Double]) = {
         val keys = m.keySet.map(_._1).toList
         val norms = m.toList.map(x => (x._1._2, x._2)).groupBy(_._1).map(x => Map(x._1 -> x._2.map(_._2).sum)).reduce(_ ++ _)
@@ -107,6 +118,7 @@ object AHPExperiments {
 
         weights
       }
+
 
       val prefWeights = prefHeaders
         .map(h => Map(h -> getWeights(getPrefsMatrx(cData, scoreFunction, { x => x.params(h)}, extSigns(i)))))
